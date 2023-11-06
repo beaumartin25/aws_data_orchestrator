@@ -87,6 +87,18 @@ def otherAttributesUpdate(json_object):
     return item
 
 
+def check_item_exists(database, widgetId):
+    try:
+        response = DDB.get_item(
+            TableName=database,
+            Key={'id': {'S': widgetId}},
+            ProjectionExpression='id'  # Check only for the existence of the 'id' attribute
+        )
+        return 'Item' in response
+    except DDB.exceptions.ResourceNotFoundException:
+        return False  # Table does not exist, so the item doesn't exist
+
+
 def create(json_object, args):
     web = args.wb 
     database = args.dwt      
@@ -138,25 +150,19 @@ def update(json_object, args):
             Key=fileString
         )
     else:
-        
-    
-
-        # response = DDB.update_item(
-        #     TableName=database,
-        #     Key=key,
-        #     UpdateExpression=update_expression,
-        #     ExpressionAttributeValues=expression_attribute_values,
-        #     ExpressionAttributeNames=expression_attribute_names
-        # )
-        item = otherAttributesUpdate(json_object)
-        #print(item)
-        # Update the item in the DynamoDB table
-        response = DDB.update_item(
-            TableName=database,
-            Key={'id': {'S': widgetId}},
-            AttributeUpdates=item
-            # You may need to specify a ConditionExpression here to ensure the item exists before updating
-        )
+        if check_item_exists(database, widgetId):
+            item = otherAttributesUpdate(json_object)
+            
+            #print(item)
+            # Update the item in the DynamoDB table
+            response = DDB.update_item(
+                TableName=database,
+                Key={'id': {'S': widgetId}},
+                AttributeUpdates=item
+                # You may need to specify a ConditionExpression here to ensure the item exists before updating
+            )
+        else:
+            logging.warning(f"Widget with ID {widgetId} does not exist. Update skipped.")
 
     
 def delete(json_object, args):
