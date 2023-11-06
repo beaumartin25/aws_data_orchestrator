@@ -236,11 +236,8 @@ if __name__ == '__main__':
                 MaxNumberOfMessages=10
             )
             if 'Messages' in response:
-                objects = sorted(response.get('Messages', []), key=lambda x: x['MessageId']) #what should I sort by?
-                #print(objects)
-                for message in objects:
+                for message in response['Messages']:
                     receipt_handle = message['ReceiptHandle']
-                    #print(message)
                     processData(args, message['Body'])
                     SQS.delete_message(
                         QueueUrl=queue,
@@ -253,7 +250,7 @@ if __name__ == '__main__':
                 else:
                     wait = False 
         else:
-            response = S3.list_objects_v2(Bucket=requests) #how would I get just one request but still get it by lowest key first
+            response = S3.list_objects_v2(Bucket=requests) 
             if len(response.get('Contents', [])) != 0:
                 objects = sorted(response.get('Contents', []), key=lambda x: x['Key'])
                 for obj in objects:
