@@ -14,8 +14,10 @@ def getArgs(): #-rb [reqeust bucket] -wb [web bucket] -dwt [dynamo db database]
     group = parser.add_mutually_exclusive_group(required=True)
 
     parser.add_argument('-rb', type=str, required=True, help='enter request bucket address') 
+    parser.add_argument('-rq', type=str, help='renter request queue address')
     group.add_argument('-wb', type=str, help='enter web bucket address')
-    group.add_argument('-dwt', type=str, help='enterdynamo db address')
+    group.add_argument('-dwt', type=str, help='enter dynamo db address')
+    
 
     args = parser.parse_args()
     return args
@@ -193,10 +195,7 @@ def delete(json_object, args):
         )
 
 
-
-def processData(line, args):
-    requests = args.rb 
-
+def processData(args, json_data):
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s",
                         datefmt="%Y-%m-%d %H:%M:%S",
@@ -205,57 +204,69 @@ def processData(line, args):
                             logging.StreamHandler()
                         ]
                         )
-
-    key = line['Key']
     
+    json_object = json.loads(json_data)
 
-    # Retrieve the JSON content from S3
-    response = S3.get_object(Bucket=requests, Key=key)
-    json_data = response['Body'].read().decode('utf-8')
+    requestId = json_object["requestId"]
+    widgetId = json_object["widgetId"]
+    option = json_object["type"]
+
+    logging.info(f"Process a {option} request for widget {widgetId} in request {requestId}")
     
-    try:
-        json_object = json.loads(json_data)
-
-        requestId = json_object["requestId"]
-        widgetId = json_object["widgetId"]
-        option = json_object["type"]
-
-        logging.info(f"Process a {option} request for widget {widgetId} in request {requestId}")
-        
-        if option == "create":
-            create(json_object, args)
-        if option == "update":
-            update(json_object, args)
-        if option == "delete":
-            delete(json_object, args)
-
-        # Delete the object from the S3 bucket after processing
-        S3.delete_object(Bucket=requests, Key=key)
-    except json.JSONDecodeError as e:
-        print(f"Error parsing JSON object {key}: {str(e)}")
-
-
+    if option == "create":
+        create(json_object, args)
+    if option == "update":
+        update(json_object, args)
+    if option == "delete":
+        delete(json_object, args)
 
 
 if __name__ == '__main__':
     args = getArgs()
-    requests = args.rb 
+    requests = args.rb
+    queue = args.rq
       
     wait = True
     waited = False
             
     while wait:
-        
-        response = S3.list_objects_v2(Bucket=requests) #how would I get just one request but still get it by lowest key first
-        if len(response.get('Contents', [])) != 0:
-            objects = sorted(response.get('Contents', []), key=lambda x: x['Key'])
-            for obj in objects:
-                processData(obj, args)
-            waited = False
-        else:
-            if waited == False:
-                time.sleep(.1)
-                waited = True
+        if queue:
+            response = SQS.receive_message(
+                QueueUrl=queue,
+                MaxNumberOfMessages=10
+            )
+            if 'Messages' in response:
+                objects = sorted(response.get('Messages', []), key=lambda x: x['MessageId']) #what should I sort by?
+                #print(objects)
+                for message in objects:
+                    receipt_handle = message['ReceiptHandle']
+                    #print(message)
+                    processData(args, message['Body'])
+                    SQS.delete_message(
+                        QueueUrl=queue,
+                        ReceiptHandle=receipt_handle
+                    )
             else:
-                wait = False
+                if waited == False:
+                    time.sleep(.1)
+                    waited = True
+                else:
+                    wait = False 
+        else:
+            response = S3.list_objects_v2(Bucket=requests) #how would I get just one request but still get it by lowest key first
+            if len(response.get('Contents', [])) != 0:
+                objects = sorted(response.get('Contents', []), key=lambda x: x['Key'])
+                for obj in objects:
+                    key = obj['Key']
+                    response = S3.get_object(Bucket=requests, Key=key)
+                    json_data = response['Body'].read().decode('utf-8')
+                    processData(args, json_data)
+                    S3.delete_object(Bucket=requests, Key=key)
+                waited = False
+            else:
+                if waited == False:
+                    time.sleep(.1)
+                    waited = True
+                else:
+                    wait = False
         
