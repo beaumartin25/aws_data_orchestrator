@@ -59,18 +59,30 @@ def otherAttributesUpdate(json_object):
 
     item = {}
     if owner is not None:
-        item['owner'] = {'Action': 'PUT', 'Value': {'S': owner}}
+        if len(owner) == 0: 
+            item['owner'] = {'Action': 'DELETE'}
+        else:
+            item['owner'] = {'Action': 'PUT', 'Value': {'S': owner}}
     if label is not None:
-        item['label'] = {'Action': 'PUT', 'Value': {'S': label}}
+        if len(label) == 0:
+            item['label'] = {'Action': 'DELETE'}
+        else:
+            item['label'] = {'Action': 'PUT', 'Value': {'S': label}}
     if description is not None:
-        item['description'] = {'Action': 'PUT', 'Value': {'S': description}}
+        if len(description) == 0:
+            item['description'] = {'Action': 'DELETE'}
+        else:
+            item['description'] = {'Action': 'PUT', 'Value': {'S': description}}
 
     other_attributes = json_object.get('otherAttributes', [])
     if other_attributes is not None:
         for attribute in other_attributes:
             attribute_name = attribute.get('name')
             attribute_value = attribute.get('value')
-            item[attribute_name] = {'Action': 'PUT', 'Value': {'S': attribute_value}}
+            if len(attribute_value) == 0:
+                 item[attribute_name] = {'Action': 'DELETE'}
+            else:
+                item[attribute_name] = {'Action': 'PUT', 'Value': {'S': attribute_value}}
 
     return item
 
