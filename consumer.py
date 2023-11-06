@@ -3,6 +3,7 @@ import boto3
 import json
 import argparse
 import logging
+import os
 
 S3 = boto3.client('s3')
 DDB = boto3.client('dynamodb', region_name='us-east-1')
@@ -22,6 +23,10 @@ def getArgs(): #-rb [reqeust bucket] -wb [web bucket] -dwt [dynamo db database]
     args = parser.parse_args()
     return args
     
+
+def create_log_directory(log_file_path):
+    log_directory = os.path.dirname(log_file_path)
+    os.makedirs(log_directory, exist_ok=True)
 
 def convertToFileFormat(owner, widgetId):
     owner = owner.lower().replace(" ", "-")
@@ -228,6 +233,7 @@ if __name__ == '__main__':
       
     wait = True
     waited = False
+    create_log_directory("logs/")
             
     while wait:
         if queue:
